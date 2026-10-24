@@ -1,0 +1,13 @@
+{
+  "name": "@hunger/ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.tsx",
+  "types": "src/index.tsx",
+  "dependencies": {
+    "@hunger/core": "*",
+    "react": "19.3.0",
+    "lucide-react": "1.61.0"
+  }
+}
