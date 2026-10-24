@@ -1,4 +1,4 @@
-# Backend handoff — hunger-2026-10-24-v3
+# Backend handoff — hunger-2026-10-24-v4
 
 Owner: backend teammate. Paths: `backend/` and this handoff.
 

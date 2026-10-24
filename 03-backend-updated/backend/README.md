@@ -51,4 +51,4 @@ Keep `schema.sql` and the initial migration aligned while it remains undeployed.
 
 ## Synchronized source release
 
-Release `hunger-2026-10-24-v3` is matched to the redesigned clients. See `CLIENT-CONTRACT.md`. No new database migration is required for this UI release.
+Release `hunger-2026-10-24-v4` is matched to the redesigned clients. See `CLIENT-CONTRACT.md`. No new database migration is required for this UI release.

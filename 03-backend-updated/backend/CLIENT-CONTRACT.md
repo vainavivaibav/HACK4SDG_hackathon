@@ -1,4 +1,4 @@
-# Client contract — hunger-2026-10-24-v3
+# Client contract — hunger-2026-10-24-v4
 
 This backend bundle is paired with the website, Expo app, and host/admin integration archives from the same release. The UI redesign does not require a schema change. The existing reviewed schema and migration remain identical; do not reapply the initial migration to a populated HUNGER project just to update UI files.
 
