@@ -1,0 +1,8 @@
+import {Platform} from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+// Native refresh tokens are encrypted in the OS keychain, split for small-value limits.
+export const sessionStorage={
+ async getItem(key:string){if(Platform.OS==='web')return typeof localStorage==='undefined'?null:localStorage.getItem(key);const raw=await SecureStore.getItemAsync(key);if(!raw)return null;try{const meta=JSON.parse(raw) as {version:string;parts:number};if(!Number.isInteger(meta.parts)||meta.parts<1||meta.parts>64)return null;const chunks=await Promise.all(Array.from({length:meta.parts},(_,i)=>SecureStore.getItemAsync(`${key}.${meta.version}.${i}`)));return chunks.every(x=>x!==null)?chunks.join(''):null;}catch{return null;}},
+ async setItem(key:string,value:string){if(Platform.OS==='web'){localStorage.setItem(key,value);return;}const previous=await SecureStore.getItemAsync(key);const version=Date.now().toString(36);const chunks=value.match(/[\s\S]{1,1700}/g)||[''];await Promise.all(chunks.map((v,i)=>SecureStore.setItemAsync(`${key}.${version}.${i}`,v)));await SecureStore.setItemAsync(key,JSON.stringify({version,parts:chunks.length}));if(previous){try{const m=JSON.parse(previous);await Promise.all(Array.from({length:m.parts},(_,i)=>SecureStore.deleteItemAsync(`${key}.${m.version}.${i}`)));}catch{/* Previous invalid metadata can be discarded. */}}},
+ async removeItem(key:string){if(Platform.OS==='web'){localStorage.removeItem(key);return;}const raw=await SecureStore.getItemAsync(key);await SecureStore.deleteItemAsync(key);if(raw){try{const m=JSON.parse(raw);await Promise.all(Array.from({length:m.parts},(_,i)=>SecureStore.deleteItemAsync(`${key}.${m.version}.${i}`)));}catch{/* No readable chunks remain. */}}}
+};

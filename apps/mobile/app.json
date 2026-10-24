@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "HUNGER",
+    "slug": "hunger-community",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/hunger-icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "org.hunger.community"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/hunger-icon.png",
+        "backgroundColor": "#D73943"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "org.hunger.community"
+    },
+    "web": {
+      "favicon": "./assets/hunger-icon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-localization",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow HUNGER to scan meal reservation QR codes.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow HUNGER to find serving venues near you. Your background location is not tracked.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ]
+    ],
+    "scheme": "hunger"
+  }
+}
