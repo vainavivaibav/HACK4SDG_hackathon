@@ -1,0 +1,1 @@
+export default function NotFound(){return <main className="wrap section"><p className="eyebrow">HUNGER / 404</p><h1>This table<br/><em>is elsewhere.</em></h1><p className="muted">The page you requested is not available.</p><a className="button primary" href="/">Find a meal</a></main>;}
