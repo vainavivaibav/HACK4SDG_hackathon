@@ -1,0 +1,139 @@
+import type { Language, Meal } from "@hunger/core";
+const en = {
+  tag: "GOOD FOOD. ZERO WASTE.",
+  title: "A good meal.",
+  accent: "Closer than you think.",
+  intro:
+    "Discover surplus meals shared by local venues. Reserve for free, stop by, and make good food go further.",
+  explore: "Explore meals",
+  community: "Made for our community",
+  nearYou: "Good food near you",
+  results: "meals to explore",
+  search: "Search meals, venues or areas",
+  filters: "Find your next meal",
+  reset: "Clear filters",
+  photo: "Illustrative meal photo",
+  preview: "Sample preview",
+  previewBody:
+    "Explore the experience. Real reservations become available when your team connects the backend.",
+  ready: "Ready to serve",
+  later: "Serving soon",
+  why: "A little sharing. A big difference.",
+  how: "From a kitchen to your plate.",
+  step1: "Find something good",
+  body1: "Browse nearby meals and choose a serving window that works for you.",
+  step2: "Save your place",
+  body2: "Reserve one meal and keep your QR token handy.",
+  step3: "Stop by and enjoy",
+  body3: "Show your token at the venue. Your meal is served, completely free.",
+  pickup: "Collect at the venue",
+  zero: "No fees. Just good food.",
+  neighbourhood: "Your neighbourhood",
+  account: "Your space, your preferences.",
+  accountBody: "Keep your areas, language, and availability in one place.",
+  history: "Your next meal is waiting.",
+  historyBody:
+    "Your reservations, collection details, and meal history. All in one place.",
+  active: "You have a meal reserved",
+  activeBody: "Your token is ready. Check the countdown before heading out.",
+  backup: "Or use your 4-digit backup code",
+  count: "Available portions",
+  share: "Have food to share?",
+  shareBody: "Turn unserved food into someone’s next meal.",
+  browse: "Browse meals",
+  trust: "Free meals · Local venues · On-site collection",
+  language: "Language",
+  notFound: "No matches? Try a different area or clear your filters.",
+};
+type Copy = typeof en;
+const kn: Copy = {
+  ...en,
+  tag: "ಒಳ್ಳೆಯ ಊಟ. ಕಡಿಮೆ ವ್ಯರ್ಥ.",
+  title: "ಒಳ್ಳೆಯ ಊಟ.",
+  accent: "ನಿಮ್ಮ ಹತ್ತಿರದಲ್ಲೇ.",
+  intro:
+    "ಹತ್ತಿರದ ಸ್ಥಳಗಳು ಹಂಚುವ ಊಟ ಹುಡುಕಿ. ಉಚಿತವಾಗಿ ಕಾಯ್ದಿರಿಸಿ, ಸ್ಥಳಕ್ಕೆ ಭೇಟಿ ನೀಡಿ.",
+  explore: "ಊಟ ಹುಡುಕಿ",
+  nearYou: "ಹತ್ತಿರದ ಒಳ್ಳೆಯ ಊಟ",
+  results: "ಊಟಗಳು ಲಭ್ಯ",
+  search: "ಊಟ, ಸ್ಥಳ ಅಥವಾ ಪ್ರದೇಶ ಹುಡುಕಿ",
+  filters: "ನಿಮ್ಮ ಮುಂದಿನ ಊಟ",
+  reset: "ಫಿಲ್ಟರ್ ತೆರವುಗೊಳಿಸಿ",
+  photo: "ಸಾಂಕೇತಿಕ ಊಟದ ಚಿತ್ರ",
+  preview: "ಮಾದರಿ ಪೂರ್ವವೀಕ್ಷಣೆ",
+  previewBody:
+    "ಇದು ಮಾದರಿ. ನಿಜವಾದ ಕಾಯ್ದಿರಿಸುವಿಕೆಗೆ ನಿಮ್ಮ ತಂಡ ಬ್ಯಾಕೆಂಡ್ ಸಂಪರ್ಕಿಸಬೇಕು.",
+  ready: "ಈಗ ಬಡಿಸಲಾಗುತ್ತಿದೆ",
+  later: "ಶೀಘ್ರದಲ್ಲಿ ಬಡಿಸಲಾಗುತ್ತದೆ",
+  how: "ಅಡುಗೆಮನೆಯಿಂದ ನಿಮ್ಮ ತಟ್ಟೆಗೆ.",
+  step1: "ಊಟ ಹುಡುಕಿ",
+  body1: "ಹತ್ತಿರದ ಊಟ ಮತ್ತು ಸೂಕ್ತ ಸಮಯ ಆರಿಸಿ.",
+  step2: "ನಿಮ್ಮ ಸ್ಥಾನ ಕಾಯ್ದಿರಿಸಿ",
+  body2: "ಒಂದು ಊಟ ಕಾಯ್ದಿರಿಸಿ ಮತ್ತು QR ಟೋಕನ್ ಉಳಿಸಿಕೊಳ್ಳಿ.",
+  step3: "ಬನ್ನಿ, ಊಟ ಪಡೆಯಿರಿ",
+  body3: "ಸ್ಥಳದಲ್ಲಿ ಟೋಕನ್ ತೋರಿಸಿ ಉಚಿತ ಊಟ ಪಡೆಯಿರಿ.",
+  pickup: "ಸ್ಥಳದಲ್ಲೇ ಊಟ ಪಡೆಯಿರಿ",
+  zero: "ಶುಲ್ಕವಿಲ್ಲ. ಒಳ್ಳೆಯ ಊಟ ಮಾತ್ರ.",
+  neighbourhood: "ನಿಮ್ಮ ಪ್ರದೇಶ",
+  account: "ನಿಮ್ಮ ವಿವರ, ನಿಮ್ಮ ಆದ್ಯತೆ.",
+  history: "ನಿಮ್ಮ ಮುಂದಿನ ಊಟ ಕಾಯುತ್ತಿದೆ.",
+  backup: "ಅಥವಾ 4 ಅಂಕಿಯ ಕೋಡ್ ಬಳಸಿ",
+  count: "ಲಭ್ಯ ಊಟಗಳು",
+  browse: "ಊಟ ನೋಡಿ",
+  active: "ನಿಮ್ಮ ಊಟ ಕಾಯ್ದಿರಿಸಲಾಗಿದೆ",
+  activeBody: "ಹೊರಡುವ ಮುನ್ನ ಟೋಕನ್‌ನ ಉಳಿದ ಸಮಯ ನೋಡಿ.",
+  share: "ಹಂಚಲು ಆಹಾರ ಇದೆಯೇ?",
+  shareBody: "ಬಡಿಸದ ಊಟವನ್ನು ಇನ್ನೊಬ್ಬರಿಗೆ ಹಂಚಿ.",
+};
+const hi: Copy = {
+  ...en,
+  tag: "अच्छा खाना। कम बर्बादी।",
+  title: "अच्छा भोजन।",
+  accent: "आपके और करीब।",
+  intro:
+    "स्थानीय आयोजकों का बचा अनपरोसा भोजन खोजें। मुफ़्त आरक्षित करें और स्थल से भोजन लें।",
+  explore: "भोजन खोजें",
+  nearYou: "आपके पास अच्छा भोजन",
+  results: "भोजन उपलब्ध",
+  search: "भोजन, स्थल या इलाका खोजें",
+  filters: "आपका अगला भोजन",
+  reset: "फ़िल्टर हटाएँ",
+  photo: "भोजन की सांकेतिक तस्वीर",
+  preview: "नमूना प्रीव्यू",
+  previewBody:
+    "यह एक नमूना है। असली आरक्षण के लिए आपकी टीम को बैकएंड जोड़ना होगा।",
+  ready: "अभी उपलब्ध",
+  later: "जल्द उपलब्ध",
+  how: "रसोई से आपकी थाली तक।",
+  step1: "भोजन खोजें",
+  body1: "पास का भोजन और अपने लिए सही समय चुनें।",
+  step2: "अपनी जगह बचाएँ",
+  body2: "एक भोजन आरक्षित करें और QR टोकन रखें।",
+  step3: "आएँ और भोजन लें",
+  body3: "स्थल पर टोकन दिखाएँ। भोजन पूरी तरह मुफ़्त है।",
+  pickup: "स्थल से भोजन लें",
+  zero: "कोई शुल्क नहीं। सिर्फ़ अच्छा खाना।",
+  neighbourhood: "आपका इलाका",
+  account: "आपकी जानकारी, आपकी पसंद।",
+  history: "आपका अगला भोजन तैयार है।",
+  backup: "या 4 अंकों का बैकअप कोड दिखाएँ",
+  count: "उपलब्ध भोजन",
+  browse: "भोजन देखें",
+  active: "आपका भोजन आरक्षित है",
+  activeBody: "निकलने से पहले टोकन का बचा समय देखें।",
+  share: "भोजन साझा करना है?",
+  shareBody: "बचा अनपरोसा भोजन किसी के साथ साझा करें।",
+};
+export const copyFor = (lang: Language): Copy => ({ en, kn, hi })[lang];
+// The backend has no meal-photo field. These are visibly labelled illustrations.
+export function mealPhoto(m: Meal) {
+  const text = (m.title + " " + m.description).toLowerCase();
+  return (
+    "/assets/" +
+    (m.diet === "nonveg"
+      ? "biryani-v2.jpg"
+      : /pulao|rice bowl/.test(text)
+        ? "pulao-v2.jpg"
+        : "thali-v2.jpg")
+  );
+}
