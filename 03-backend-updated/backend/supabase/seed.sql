@@ -1,0 +1,2 @@
+-- Intentionally empty: never seed sample food as real availability.
+-- Disposable browser fixtures are created only by backend/tests/local-stack.mjs.
