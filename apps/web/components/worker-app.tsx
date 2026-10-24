@@ -1,44 +1,244 @@
 'use client';
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
+import {useRouter} from 'next/navigation';
 import {motion,useReducedMotion} from 'motion/react';
-import {ArrowUpRight,MapPin,Clock,Heart,Utensils,Navigation,Leaf,LogIn,RefreshCw,Ticket,Check,ShieldCheck,LocateFixed,UserRound,LogOut,MessageCircle} from 'lucide-react';
-import {QRCodeSVG} from 'qrcode.react';
-import {Brand,Button,ErrorNotice,LanguageSelect,Modal,useHunger} from '@hunger/ui';
-import {sampleMeals,distanceKm,isServing,directions,mealTime,effectiveStatus,tokenSeconds,qrPayload,errorMessage,type Meal,type Reservation,type Coords,type Language} from '@hunger/core';
-type Screen='discover'|'meals'|'profile';
+import {ArrowUpRight,ArrowRight,MapPin,Clock,Utensils,Leaf,LogIn,RefreshCw,Ticket,Check,ShieldCheck,LocateFixed,UserRound,LogOut,MessageCircle,Search,Home,Navigation,SlidersHorizontal} from 'lucide-react';
+import {Button,ErrorNotice,LanguageSelect,Modal,useHunger} from '@hunger/ui';
+import {sampleMeals,distanceKm,isServing,effectiveStatus,errorMessage,mealTime,type Meal,type Reservation,type Coords,type Language} from '@hunger/core';
+import {copyFor,mealPhoto} from '../lib/presentation';
+import {MealDetailView,ReservationView,ReservationClock} from './worker-views';
+type Screen='discover'|'meals'|'profile'|'detail'|'reservation';
 const consoleUrl=process.env.NEXT_PUBLIC_CONSOLE_URL||'http://localhost:3001';
-export function WorkerApp({screen}:{screen:Screen}){
- const{api,user,t,lang,setLang,setAuthOpen,notify,version,realtime,reload}=useHunger();
- const[meals,setMeals]=useState<Meal[]>([]),[reservations,setReservations]=useState<Reservation[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[selected,setSelected]=useState<Meal|null>(null),[token,setToken]=useState<Reservation|null>(null),[busy,setBusy]=useState(false);
- const[area,setArea]=useState('all'),[diet,setDiet]=useState('all'),[windowFilter,setWindowFilter]=useState('all'),[coords,setCoords]=useState<Coords|null>(null),[radius,setRadius]=useState(0),[locationBusy,setLocationBusy]=useState(false),[reportMeal,setReportMeal]=useState<Meal|null>(null),[feedback,setFeedback]=useState<Reservation|null>(null);
- const reduced=useReducedMotion();
- const load=useCallback(async()=>{if(!api){setMeals(sampleMeals());setLoading(false);return;}try{const list=await api.meals();setMeals(list);if(user)setReservations((await api.reservations()).filter(r=>r.worker_id===user.id));else setReservations([]);setError('');}catch(e){setError(errorMessage(e));}finally{setLoading(false);}},[api,user]);
+export function WorkerApp({screen,mealId,reservationId}:{screen:Screen;mealId?:string;reservationId?:string}){
+ const {api,user,ready,t,lang,setAuthOpen,notify,version,realtime,reload}=useHunger();
+ const router=useRouter(); const reduced=useReducedMotion(),c=copyFor(lang);
+ const [meals,setMeals]=useState<Meal[]>([]),[reservations,setReservations]=useState<Reservation[]>([]),[owner,setOwner]=useState<string|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[actionError,setActionError]=useState(''),[busy,setBusy]=useState(false);
+ const [area,setArea]=useState('all'),[diet,setDiet]=useState('all'),[windowFilter,setWindowFilter]=useState('all'),[query,setQuery]=useState(''),[sort,setSort]=useState('window'),[coords,setCoords]=useState<Coords|null>(null),[radius,setRadius]=useState(0),[locationBusy,setLocationBusy]=useState(false),[clock,setClock]=useState(Date.now());
+ const [filtersExpanded,setFiltersExpanded]=useState(false);
+ const [reportMeal,setReportMeal]=useState<Meal|null>(null),[feedback,setFeedback]=useState<Reservation|null>(null),[confirmRelease,setConfirmRelease]=useState<Reservation|null>(null);
+ const load=useCallback(async()=>{setLoading(true);if(!api){setMeals(sampleMeals());setLoading(false);return;}try{const list=await api.meals();setMeals(list);if(user){const rows=await api.reservations();setReservations(rows.filter(r=>r.worker_id===user.id));setOwner(user.id);}else{setReservations([]);setOwner(null);}setError('');}catch(e){setError(errorMessage(e));}finally{setLoading(false);}},[api,user]);
  useEffect(()=>{void load();},[load,version]);
+ useEffect(()=>{const timer=setInterval(()=>setClock(Date.now()),1000);return()=>clearInterval(timer);},[]);
+ const ownReservations=owner===user?.id?reservations:[];
+ const active=ownReservations.find(r=>effectiveStatus(r,clock)==='active');
+ const selected=meals.find(m=>m.id===mealId);
+ const currentToken=ownReservations.find(r=>r.id===reservationId);
  const areas=useMemo(()=>[...new Set(meals.map(m=>m.area))].sort(),[meals]);
- const filtered=useMemo(()=>meals.filter(m=>m.status==='open'&&Date.parse(m.ends_at)>Date.now()&&(area==='all'||m.area===area)&&(diet==='all'||m.diet===diet)&&(windowFilter!=='now'||isServing(m))&&(!coords||!radius||distanceKm(coords,m)<=radius)).sort((a,b)=>coords?distanceKm(coords,a)-distanceKm(coords,b):Date.parse(a.starts_at)-Date.parse(b.starts_at)),[meals,area,diet,windowFilter,coords,radius]);
- useEffect(()=>{setToken(current=>current?reservations.find(r=>r.id===current.id)||current:null);},[reservations]);
+ const eligible=meals.filter(m=>m.status==='open'&&Date.parse(m.ends_at)>clock&&(area==='all'||m.area===area)&&(!query.trim()||[m.title,m.description,m.area,m.venue_name].join(' ').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))&&(windowFilter!=='now'||isServing(m,clock))&&(!coords||!radius||distanceKm(coords,m)<=radius));
+ const filtered=eligible.filter(m=>diet==='all'||m.diet===diet).sort((a,b)=>sort==='portions'?b.available_portions-a.available_portions:sort==='distance'&&coords?distanceKm(coords,a)-distanceKm(coords,b):Date.parse(a.starts_at)-Date.parse(b.starts_at));
+ const count=filtered.reduce((n,m)=>n+m.available_portions,0),venueCount=new Set(filtered.map(m=>m.venue_id)).size;
  const requireAuth=()=>{if(!user){setAuthOpen(true);return false;}return true;};
- async function reserve(m:Meal){if(!api||!requireAuth()){setAuthOpen(true);return;}setBusy(true);try{const r=await api.reserve(m.id);setToken(r);setSelected(null);notify(t.reserved);reload();}catch(e){notify(errorMessage(e));}finally{setBusy(false);}}
- async function release(r:Reservation){if(!api||!window.confirm(t.confirmRelease))return;setBusy(true);try{await api.cancel(r.id);setToken(null);notify(t.released);reload();}catch(e){notify(errorMessage(e));}finally{setBusy(false);}}
- function locate(){if(!navigator.geolocation){notify('Location is unavailable. Choose an area instead.');return;}setLocationBusy(true);navigator.geolocation.getCurrentPosition(p=>{setCoords({latitude:p.coords.latitude,longitude:p.coords.longitude});setRadius(5);setLocationBusy(false);},()=>{notify('Location access was unavailable. Choose an area instead.');setLocationBusy(false);},{enableHighAccuracy:false,timeout:10000,maximumAge:60000});}
- return <><header className="site-header"><div className="wrap header-inner"><Brand/><nav aria-label="Main navigation"><Link href="/#find-food" aria-current={screen==='discover'?'page':undefined}>{t.find}</Link><Link href="/meals" aria-current={screen==='meals'?'page':undefined}>{t.meals}</Link><a className="host-link" href={consoleUrl}>{t.host} <ArrowUpRight size={13}/></a></nav><div className="header-actions"><LanguageSelect/>{user?<Link href="/profile" className="profile-link" aria-label={t.profile}><UserRound size={19}/></Link>:<button className="sign-in" onClick={()=>setAuthOpen(true)}><LogIn size={15}/><span>{t.signin}</span></button>}</div></div></header>
- <main>{screen==='discover'?<><section className="wrap hero"><motion.div initial={false} animate={{opacity:1,y:0}} transition={{duration:.55}}><p className="eyebrow hero-eyebrow"><span>✳</span>{t.eyebrow}</p><h1>{t.hero1}<br/>{t.hero2}<br/><em>{t.hero3}</em></h1><p className="hero-description">{t.heroBody}</p><div className="hero-actions"><a className="button primary" href="#find-food">{t.findMeal}<ArrowUpRight size={16}/></a><a className="underlined" href="#how-it-works">{t.how}</a></div><div className="hero-assurance"><span className="heart-circle"><Heart size={19}/></span><span>{t.free}.<br/>{t.collect}.</span></div></motion.div><motion.div className="hero-art" initial={false} animate={{opacity:1,rotate:0,y:0}} transition={{duration:.8,delay:.1}}><div className="art-ring"/><span className="art-note">A LITTLE LESS WASTE.<br/>A LOT MORE CARE.</span><img src="/assets/food.png" alt="A generous spread of Indian food, ready to be shared" fetchPriority="high"/><span className="food-sticker">GOOD FOOD<em>belongs on a plate.</em></span><span className="art-caption">From surplus to someone’s supper.</span><span className="art-star" aria-hidden="true">✳</span></motion.div></section><div className="ticker" aria-hidden="true"><span>FOOD IS FOR SHARING</span><b>✳</b><span>COMMUNITIES ARE FOR CARING</span><b>✳</b><span>EVERY PLATE HAS POTENTIAL</span><b>✳</b></div>
- <section className="wrap section" id="find-food"><div className="section-head"><div><p className="eyebrow">01 / {t.available}</p><h2>{t.discoverTitle}<br/><em>{t.discoverAccent}</em></h2></div><p>{t.discoverBody}</p></div>{process.env.NEXT_PUBLIC_DATA_MODE==='sample'&&<div className="notice">LOCAL TEST DATA - these reservations do not secure real food.</div>}<div className="data-bar"><span><i className="status-dot"/>{api?t.live:t.sample}</span><div className="status-line">{api&&<><i className={`status-dot ${realtime!=='SUBSCRIBED'?'warn':''}`}/>{realtime==='SUBSCRIBED'?t.updated:t.offline}</>}<button className="icon-button" aria-label={t.refresh} onClick={reload}><RefreshCw size={13}/></button></div></div>{!api&&<div className="preview-notice">{t.sampleNotice}</div>}
- <div className="filter-bar"><label>{t.area}<select value={area} onChange={e=>setArea(e.target.value)}><option value="all">{t.allAreas}</option>{areas.map(a=><option key={a}>{a}</option>)}</select></label><div className="tab-buttons" role="group" aria-label="Diet"><button onClick={()=>setDiet('all')} aria-pressed={diet==='all'}>{t.all}</button><button onClick={()=>setDiet('veg')} aria-pressed={diet==='veg'}><Leaf size={12}/>{t.veg}</button><button onClick={()=>setDiet('nonveg')} aria-pressed={diet==='nonveg'}>{t.nonveg}</button></div><select className="window-select" aria-label={t.serving} value={windowFilter} onChange={e=>setWindowFilter(e.target.value)}><option value="all">{t.anyTime}</option><option value="now">{t.now}</option></select><Button variant="ghost" busy={locationBusy} onClick={locate}><LocateFixed size={15}/>{t.nearby}</Button>{coords&&<select className="distance-select" aria-label={t.distance} value={radius} onChange={e=>setRadius(Number(e.target.value))}><option value={0}>{t.anyDistance}</option><option value={2}>2 km</option><option value={5}>5 km</option><option value={10}>10 km</option></select>}</div>
- {error&&<ErrorNotice message={error} retry={reload}/>}<div className="meal-grid">{loading?[1,2,3].map(i=><div key={i} className="skeleton" aria-label={t.loading}/>):filtered.map((m,i)=><motion.article className="meal-card" key={m.id} initial={reduced?false:{opacity:0,y:15}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{duration:.35,delay:Math.min(i*.06,.2)}}><div className={`meal-image image-${i%3}`}><img src="/assets/venue.png" alt="Illustrative buffet serving area" loading="lazy"/><span className="meal-diet badge">{m.diet==='veg'?<Leaf size={10}/>:<Utensils size={10}/>} {m.diet==='veg'?t.veg:t.nonveg}</span><span className="sample-label">{!api?t.sample:m.verification==='approved'?<><ShieldCheck size={11}/> Venue reviewed</>:''}</span></div><div className="meal-content"><p className="meal-location"><MapPin size={11}/>{m.area}{coords&&` · ${distanceKm(coords,m).toFixed(1)} km`}</p><h3>{m.title}</h3><p className="venue-name">{m.venue_name}</p><p className="meal-description">{m.description}</p><div className="meal-meta"><span><Clock size={12}/>{mealTime(m.starts_at,lang)} - {mealTime(m.ends_at,lang)}</span><strong>{m.available_portions} {t.portions}</strong></div><div className="meal-bottom"><div className="free-price">₹0<small>{t.free}</small></div><button className="meal-detail-button" onClick={()=>setSelected(m)}>{t.details}<ArrowUpRight size={13}/></button></div></div></motion.article>)}</div>{!loading&&!error&&!filtered.length&&<div className="empty-state"><Utensils size={33}/><h3>{t.empty}</h3><p>{t.emptyHelp}</p><Button variant="secondary" onClick={()=>{setArea('all');setDiet('all');setWindowFilter('all');setRadius(0);}}>{t.all}</Button></div>}<div className="finder-note"><Heart size={13}/>{t.collect}. {t.phoneFree}</div></section>
- <section className="how-section" id="how-it-works"><div className="wrap"><p className="eyebrow">02 / {t.how}</p><h2>Three steps.<br/><em>One shared table.</em></h2><div className="steps">{[[t.step1,t.step1Body],[t.step2,t.step2Body],[t.step3,t.step3Body]].map(([title,body],i)=><article key={i}><span>0{i+1}</span><h3>{title}</h3><p>{body}</p></article>)}</div></div></section><section className="wrap community-section"><div className="community-art"><img src="/assets/community.png" alt="Community members serving meals together" loading="lazy"/><span>People. Plates. Possibility.</span></div><div><p className="eyebrow">BUILT AROUND PEOPLE</p><h2>For the people<br/>who keep our<br/><em>cities moving.</em></h2><p>Delivery partners. Drivers. Security teams. Sanitation workers. A little local coordination can turn untouched surplus into a dignified, free meal.</p><a href={consoleUrl} className="button dark">Share your surplus<ArrowUpRight size={15}/></a></div></section></>:screen==='meals'?<section className="wrap section account-section"><p className="eyebrow">HUNGER / {t.meals}</p><h2>{t.history}<em>.</em></h2><p className="page-intro">{t.tokenNote}</p>{!user?<SignInEmpty/>:error?<ErrorNotice message={error} retry={reload}/>:reservations.length?<div className="reservation-grid">{reservations.map(r=>{const m=meals.find(x=>x.id===r.listing_id);const status=effectiveStatus(r);return <article key={r.id} className="reservation-card"><div className="reservation-top"><Ticket size={21}/><span className={`badge ${status==='active'?'':status==='served'?'neutral':'red'}`}>{t[status]}</span></div><h3>{m?.title||t.meals}</h3><p>{m?.venue_name}</p><p className="status-line">{t.reservedAt} {new Date(r.created_at).toLocaleDateString()}</p>{status==='active'?<><Countdown reservation={r}/><Button className="full" onClick={()=>setToken(r)}>{t.viewToken}</Button></>:status==='served'?<Button variant="secondary" onClick={()=>setFeedback(r)}><MessageCircle size={14}/>{t.feedback}</Button>:null}</article>;})}</div>:<div className="empty-state"><Ticket size={35}/><h3>{t.noReservations}</h3><p>{t.noReservationsHelp}</p><Link href="/#find-food" className="button primary">{t.find}</Link></div>}</section>:<section className="wrap section account-section"><p className="eyebrow">HUNGER / {t.profile}</p><h2>{t.profile}<em>.</em></h2><p className="page-intro">{t.profileIntro}</p>{user?<ProfileForm/>:<SignInEmpty/>}</section>}</main>
- <footer className="wrap footer"><Brand/><p>{t.mealSaved}<br/>{t.collect}. {t.free}.</p><a href={consoleUrl}>{t.host}<ArrowUpRight size={12}/></a></footer>
- {selected&&<Modal title={t.details} onClose={()=>setSelected(null)}><span className="badge">{selected.diet==='veg'?t.veg:t.nonveg}</span><h2 className="detail-title">{selected.title}</h2><p className="muted">{selected.description}</p><div className="detail-venue"><MapPin size={17}/><div><strong>{selected.venue_name}</strong><p>{selected.address}</p></div></div><div className="detail-grid"><div><small>{t.serving}</small><strong>{mealTime(selected.starts_at,lang)} - {mealTime(selected.ends_at,lang)}</strong></div><div><small>{t.cooked}</small><strong>{mealTime(selected.cooked_at,lang)}</strong></div><div><small>{t.portions}</small><strong>{selected.available_portions}</strong></div><div><small>{t.free}</small><strong>₹0</strong></div></div><p className="instructions"><b>{t.instructions}</b><br/>{selected.instructions}</p><div className="detail-actions"><Button busy={busy} disabled={!isServing(selected)} onClick={()=>void reserve(selected)}>{t.reserve}<Ticket size={15}/></Button><a className="button secondary" href={directions(selected)} target="_blank" rel="noreferrer"><Navigation size={14}/>{t.directions}</a></div>{!isServing(selected)&&<p className="muted availability-note">{selected.available_portions===0?t.soldOut:Date.parse(selected.starts_at)>Date.now()?t.upcoming:t.ended}</p>}{!api&&<p className="preview-notice">{t.sampleNotice}</p>}{api&&<button className="report-link" onClick={()=>{if(requireAuth()){setReportMeal(selected);setSelected(null);}}}>{t.report}</button>}</Modal>}
- {token&&<Modal title={t.token} onClose={()=>setToken(null)}><h2>{t.token}<em>{t.mealSaved}</em></h2><div className="qr-wrap"><QRCodeSVG role="img" aria-label={t.token} value={qrPayload(token)} size={176} level="M" title={t.token}/></div><div className="backup-code">{token.code}</div>{effectiveStatus(token)==='active'?<Countdown reservation={token}/>:<p className="countdown">{t[effectiveStatus(token)]}</p>}<p className="token-venue">{meals.find(m=>m.id===token.listing_id)?.venue_name}</p><p className="muted token-note">{t.tokenNote}</p>{effectiveStatus(token)==='active'&&<Button variant="secondary" className="full" busy={busy} onClick={()=>void release(token)}>{t.release}</Button>}</Modal>}
- {reportMeal&&<ReportForm meal={reportMeal} onClose={()=>setReportMeal(null)}/>}{feedback&&<FeedbackForm reservation={feedback} onClose={()=>setFeedback(null)}/>}
+ async function reserve(m:Meal){if(!api||!requireAuth()){setAuthOpen(true);return;}setBusy(true);setActionError('');try{const r=await api.reserve(m.id);setReservations(rows=>[r,...rows.filter(x=>x.id!==r.id)]);setOwner(user!.id);notify(t.reserved);router.push(`/reservation/${r.id}`);reload();}catch(e){setActionError(errorMessage(e));}finally{setBusy(false);}}
+ async function release(r:Reservation){if(!api)return;setBusy(true);setActionError('');try{await api.cancel(r.id);setConfirmRelease(null);setReservations(rows=>rows.map(x=>x.id===r.id?{...x,status:'cancelled'}:x));notify(t.released);router.push('/meals');reload();}catch(e){setActionError(errorMessage(e));}finally{setBusy(false);}}
+ function locate(){if(!navigator.geolocation){notify('Location unavailable. Choose an area instead.');return;}setLocationBusy(true);navigator.geolocation.getCurrentPosition(p=>{setCoords({latitude:p.coords.latitude,longitude:p.coords.longitude});setRadius(5);setSort('distance');setLocationBusy(false);},()=>{notify('Location unavailable. Choose an area instead.');setLocationBusy(false);},{enableHighAccuracy:false,timeout:10000,maximumAge:60000});}
+ function reset(){setQuery('');setArea('all');setDiet('all');setWindowFilter('all');setRadius(0);setSort('window');}
+ const waitForToken=!error&&(!ready||loading||(!!user&&owner!==user.id));
+ return <><a className="skip-link" href="#main-content">Skip to content</a>
+ <header className="site-header"><div className="wrap header-inner"><Link href="/" className="wordmark" aria-label="HUNGER home"><span className="brand-symbol"><Utensils size={20}/></span>HUNGER<span className="wordmark-dot">·</span></Link><label className="header-area"><MapPin size={16}/><span className="sr-only">{c.neighbourhood}</span><select value={area} onChange={e=>setArea(e.target.value)}><option value="all">{c.neighbourhood}</option>{areas.map(a=><option key={a}>{a}</option>)}</select></label><nav aria-label="Main navigation"><Link href="/" aria-current={screen==='discover'||screen==='detail'?'page':undefined}>{t.find}</Link><Link href="/#how-it-works">{t.how}</Link><Link href="/meals" aria-current={screen==='meals'||screen==='reservation'?'page':undefined}>{t.meals}</Link></nav><div className="header-actions"><LanguageSelect/>{active&&<Link className="header-token" href={`/reservation/${active.id}`}><span className="status-dot"/>{c.yourReservation}</Link>}{user?<Link className="avatar-link" href="/profile" aria-label={t.profile}><UserRound size={19}/></Link>:<Button onClick={()=>setAuthOpen(true)}>{t.signin}</Button>}</div></div></header>
+ <main id="main-content" tabIndex={-1}>
+ {screen==='discover'?<section className="wrap discovery section" id="find-food"><div className="inventory-panel"><div><div className="inventory-label"><span className="inventory-pill"><span className={`status-dot ${api&&realtime!=='SUBSCRIBED'?'warn':''}`}/>{api?t.live:c.preview}</span><span>{area==='all'?c.neighbourhood:area}</span></div><h1>{c.inventory}</h1><p>{c.inventoryBody} <strong>{c.oneActive}.</strong></p></div><div className="inventory-count" role="status"><strong>{loading&&!meals.length?t.loading:`${count} ${c.portionsReady}`}</strong><span>{venueCount} {c.kitchens} · {t.free}</span></div></div>
+ {active&&<div className="active-reservation"><Ticket size={21}/><div><strong>{c.active}</strong><p>{c.activeBody}</p></div><Link className="button primary" href={`/reservation/${active.id}`}>{t.viewToken}<ArrowRight size={16}/></Link></div>}
+ <div className={`finder-panel ${filtersExpanded?'expanded':''}`}><button className="finder-toggle" aria-label={c.refine} aria-expanded={filtersExpanded} onClick={()=>setFiltersExpanded(!filtersExpanded)}><SlidersHorizontal size={19}/></button><div className="search-row"><label className="search-input"><Search size={20}/><span className="sr-only">{c.search}</span><input type="search" placeholder={c.search} value={query} onChange={e=>setQuery(e.target.value)}/></label><label className="area-input"><MapPin size={17}/><span className="sr-only">{t.area}</span><select value={area} onChange={e=>setArea(e.target.value)}><option value="all">{t.allAreas}</option>{areas.map(a=><option key={a}>{a}</option>)}</select></label><label className="time-filter"><Clock size={17}/><span className="sr-only">{t.serving}</span><select value={windowFilter} onChange={e=>setWindowFilter(e.target.value)}><option value="all">{t.anyTime}</option><option value="now">{t.now}</option></select></label><select className="sort-filter" aria-label={c.sort} value={sort} onChange={e=>setSort(e.target.value)}><option value="window">{c.earliest}</option><option value="portions">{c.mostPortions}</option>{coords&&<option value="distance">{c.closest}</option>}</select></div><div className="filter-row"><div className="tab-buttons" role="group" aria-label="Diet"><span className="dietary-title">{c.dietary}:</span>{[['all',t.all],['veg',t.veg],['nonveg',t.nonveg]].map(([value,label])=><button key={value} onClick={()=>setDiet(value)} aria-pressed={diet===value}>{value!=='all'&&<i className={`diet-dot ${value}`}/ >}{label} <span>({value==='all'?eligible.length:eligible.filter(m=>m.diet===value).length})</span></button>)}</div><div className="filter-tools"><Button variant="ghost" busy={locationBusy} onClick={locate}><LocateFixed size={15}/>{t.nearby}</Button>{coords&&<select aria-label={t.distance} value={radius} onChange={e=>setRadius(Number(e.target.value))}><option value={0}>{t.anyDistance}</option><option value={2}>2 km</option><option value={5}>5 km</option><option value={10}>10 km</option></select>}<button className="refresh-button" aria-label={t.refresh} onClick={reload}><RefreshCw size={16}/></button></div></div></div>
+ {!api&&<div className="preview-banner"><strong>{c.preview}</strong><p>{c.previewBody}</p></div>}{api&&realtime!=='SUBSCRIBED'&&<p className="live-note"><span className="status-dot warn"/>{t.offline}</p>}{process.env.NEXT_PUBLIC_DATA_MODE==='sample'&&<div className="notice">LOCAL TEST DATA — these reservations do not secure real food.</div>}{error&&<ErrorNotice message={error} retry={reload}/>}
+ <div className="meal-grid">{loading&&!meals.length?[1,2,3,4].map(i=><div key={i} className="skeleton meal-skeleton" aria-label={t.loading}/>):filtered.map((m,i)=><motion.article className={`meal-card ${m.available_portions===0?'sold-out':''}`} key={m.id} initial={reduced?false:{opacity:0,y:12}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{duration:.25,delay:Math.min(i*.04,.15)}}><div className="meal-image"><img src={mealPhoto(m)} alt={c.photo} loading="lazy"/><span className={`diet-label ${m.diet==='nonveg'?'nonveg':''}`}><i className={`diet-dot ${m.diet}`}/>{m.diet==='veg'?t.veg:t.nonveg}</span>{!api&&<span className="sample-badge">{c.preview}</span>}<span className={`window-badge ${isServing(m,clock)?'serving':''}`}><Clock size={12}/>{m.available_portions===0?t.soldOut:isServing(m,clock)?c.ready:c.later}</span><span className="photo-label">{c.photo}</span>{m.available_portions===0&&<div className="sold-out-overlay"><Check size={26}/>{t.soldOut}</div>}</div><div className="meal-content"><div className="venue-row"><span><Utensils size={14}/>{m.venue_name}</span>{coords&&<span className="distance-badge">{distanceKm(coords,m).toFixed(1)} km</span>}</div><h3>{m.title}</h3><p className="meal-description">{m.description}</p><div className="collection-summary"><p><Clock size={14}/><span>{t.serving}</span><strong>{mealTime(m.starts_at,lang)} – {mealTime(m.ends_at,lang)}</strong></p><div><span className={`portion-count ${m.available_portions>0&&m.available_portions<=3?'low':''}`}>{m.available_portions} {t.portions}</span><strong className="free-label">{t.free}</strong></div></div><Link aria-label={t.details} className="meal-detail-button" href={`/meal/${m.id}`}>{c.viewDetails}<ArrowRight size={17}/></Link></div></motion.article>)}</div>
+ {!loading&&!error&&!filtered.length&&<div className="empty-state"><Search size={30}/><h3>{t.empty}</h3><p>{c.notFound}</p><Button variant="secondary" onClick={reset}>{c.reset}</Button></div>}
+ <section className="rules-strip" id="how-it-works" aria-label={t.how}>{[[c.oneActive,c.body2],[t.serving,c.policy],[c.pickup,c.body3]].map(([title,body],i)=><article key={title}><span>{i+1}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}</section></section>
+ :screen==='detail'?(!selected?(loading?<div className="wrap section"><div className="skeleton"/></div>:<div className="wrap section"><Empty title={c.unavailable} body={t.emptyHelp}/>{error&&<ErrorNotice message={error} retry={reload}/>}</div>):<MealDetailView meal={selected} active={active} busy={busy} error={actionError} reserve={()=>void reserve(selected)} report={()=>{if(requireAuth())setReportMeal(selected);}}/> )
+ :screen==='reservation'?(!user&&!ready?<div className="wrap section"><div className="skeleton"/></div>:!user?<div className="wrap section"><SignInEmpty/></div>:!currentToken?(waitForToken?<div className="wrap section"><div className="skeleton"/></div>:<div className="wrap section"><Empty title={c.notYourToken} body={t.noReservationsHelp}/>{error&&<ErrorNotice message={error} retry={reload}/>}</div>):<ReservationView reservation={currentToken} meal={meals.find(m=>m.id===currentToken.listing_id)} now={clock} cancel={()=>setConfirmRelease(currentToken)}/>)
+ :screen==='meals'?<section className="wrap section account-section"><div className="account-heading"><p className="eyebrow">{t.meals}</p><h1>{c.history}</h1><p className="page-intro">{c.historyBody}</p></div>{!user?<SignInEmpty/>:error?<ErrorNotice message={error} retry={reload}/>:ownReservations.length?<div className="reservation-grid">{ownReservations.map(r=>{const m=meals.find(x=>x.id===r.listing_id),status=effectiveStatus(r,clock);return <article className="reservation-card" key={r.id}><div className="reservation-top"><Ticket size={23}/><span className={`badge ${status==='active'?'':status==='served'?'neutral':'red'}`}>{t[status]}</span></div><h3>{m?.title||t.meals}</h3><p>{m?.venue_name}</p><p className="status-line">{t.reservedAt} {new Date(r.created_at).toLocaleDateString()}</p>{status==='active'?<><ReservationClock reservation={r} now={clock}/><Link className="button primary full" href={`/reservation/${r.id}`}>{t.viewToken}<ArrowRight size={16}/></Link></>:status==='served'?<Button variant="secondary" onClick={()=>setFeedback(r)}><MessageCircle size={15}/>{t.feedback}</Button>:null}</article>})}</div>:<Empty title={t.noReservations} body={t.noReservationsHelp}/>}</section>
+ :<section className="wrap section account-section profile-section"><div className="account-heading"><p className="eyebrow">{t.profile}</p><h1>{c.account}</h1><p className="page-intro">{c.accountBody}</p><div className="account-reassurance"><ShieldCheck size={20}/><p>{t.preferred}</p></div></div><div>{user?<ProfileForm/>:<SignInEmpty/>}</div></section>}
+ </main><footer className="site-footer"><div className="wrap footer"><Link href="/" className="wordmark" aria-label="HUNGER home">HUNGER<span className="wordmark-dot">·</span></Link><p>{c.trust}</p><a href={consoleUrl}>{t.host}<ArrowUpRight size={15}/></a></div></footer>
+ <nav className="mobile-nav" aria-label="Mobile navigation">{[['discover','/',t.find],['meals','/meals',t.meals],['profile','/profile',t.profile]].map(([id,href,label])=><Link key={id} href={href} aria-current={(screen===id||(id==='discover'&&screen==='detail')||(id==='meals'&&screen==='reservation'))?'page':undefined}>{id==='discover'?<Home size={21}/>:id==='meals'?<Ticket size={21}/>:<UserRound size={21}/>}<span>{label}</span></Link>)}</nav>
+ {reportMeal&&<ReportForm meal={reportMeal} onClose={()=>setReportMeal(null)}/>}{feedback&&<FeedbackForm reservation={feedback} onClose={()=>setFeedback(null)}/>}{confirmRelease&&<Modal title={t.release} onClose={()=>setConfirmRelease(null)}><h2>{t.confirmRelease}</h2><p className="muted">{c.cancelBody}</p>{actionError&&<ErrorNotice message={actionError}/>}<div className="detail-actions"><Button busy={busy} onClick={()=>void release(confirmRelease)}>{t.release}</Button><Button variant="secondary" onClick={()=>setConfirmRelease(null)}>{c.keepReservation}</Button></div></Modal>}
  </>;
 }
-function Countdown({reservation}:{reservation:Reservation}){const{t}=useHunger();const[seconds,setSeconds]=useState(()=>tokenSeconds(reservation));useEffect(()=>{setSeconds(tokenSeconds(reservation));const id=setInterval(()=>setSeconds(tokenSeconds(reservation)),1000);return()=>clearInterval(id);},[reservation]);return <p className={`countdown ${seconds<=60?'urgent':''}`}>{seconds?`${t.expiresIn} ${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`:t.expiredNote}</p>;}
-function SignInEmpty(){const{t,setAuthOpen}=useHunger();return <div className="empty-state"><UserRound size={35}/><h3>{t.signinFirst}</h3><Button onClick={()=>setAuthOpen(true)}>{t.signin}<LogIn size={15}/></Button></div>;}
-function ProfileForm(){const{api,user,profile,t,lang,setLang,notify,reloadProfile}=useHunger();const[busy,setBusy]=useState(false),[error,setError]=useState('');if(!profile)return <div className="skeleton"/>;
- async function save(e:React.FormEvent<HTMLFormElement>){e.preventDefault();if(!api||!user)return;setBusy(true);setError('');const d=new FormData(e.currentTarget);try{await api.updateProfile(user.id,{display_name:d.get('display_name'),language:d.get('language'),work_areas:String(d.get('work_areas')).split(',').map(x=>x.trim()).filter(Boolean),on_duty:d.get('on_duty')==='on'});await reloadProfile();notify(t.saved);}catch(e){setError(errorMessage(e));}finally{setBusy(false);}}
- return <form className="profile-form" onSubmit={save}><label>{t.name}<input name="display_name" defaultValue={profile.display_name} required maxLength={80}/></label><label>{t.language}<select name="language" value={lang} onChange={e=>setLang(e.target.value as Language)}><option value="en">English</option><option value="kn">ಕನ್ನಡ</option><option value="hi">हिन्दी</option></select></label><label>{t.workAreas}<input aria-label={t.workAreas} aria-describedby="areas-help" name="work_areas" defaultValue={profile.work_areas.join(', ')} placeholder={t.comma}/><small id="areas-help">{t.preferred}</small></label><label className="check-label"><input type="checkbox" name="on_duty" defaultChecked={profile.on_duty}/>{t.duty}</label><div className="notice">{t.noAlerts}</div>{error&&<ErrorNotice message={error}/>}<div className="profile-actions"><Button busy={busy}>{t.save}<Check size={15}/></Button><Button type="button" variant="ghost" onClick={()=>void api?.signOut().then(()=>notify(t.signout)).catch(e=>notify(errorMessage(e)))}><LogOut size={15}/>{t.signout}</Button></div></form>;
+function Empty({title,body}:{title:string;body:string}){const {t}=useHunger();return <div className="empty-state"><Ticket size={30}/><h3>{title}</h3><p>{body}</p><Link className="button primary" href="/">{t.find}<ArrowRight size={16}/></Link></div>;}
+function SignInEmpty(){const{t,setAuthOpen}=useHunger();return <div className="empty-state"><UserRound size={33}/><h3>{t.signinFirst}</h3><Button onClick={()=>setAuthOpen(true)}>{t.signin}<LogIn size={15}/></Button></div>;}
+function ProfileForm() {
+  const { api, user, profile, t, lang, setLang, notify, reloadProfile } =
+    useHunger();
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  if (!profile) return <div className="skeleton" />;
+  async function save(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!api || !user) return;
+    setBusy(true);
+    setError("");
+    const d = new FormData(e.currentTarget);
+    try {
+      await api.updateProfile(user.id, {
+        display_name: d.get("display_name"),
+        language: d.get("language"),
+        work_areas: String(d.get("work_areas"))
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
+        on_duty: d.get("on_duty") === "on",
+      });
+      await reloadProfile();
+      notify(t.saved);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="profile-form" onSubmit={save}>
+      <label>
+        {t.name}
+        <input
+          name="display_name"
+          defaultValue={profile.display_name}
+          required
+          maxLength={80}
+        />
+      </label>
+      <label>
+        {t.language}
+        <select
+          name="language"
+          value={lang}
+          onChange={(e) => setLang(e.target.value as Language)}
+        >
+          <option value="en">English</option>
+          <option value="kn">ಕನ್ನಡ</option>
+          <option value="hi">हिन्दी</option>
+        </select>
+      </label>
+      <label>
+        {t.workAreas}
+        <input
+          aria-label={t.workAreas}
+          aria-describedby="areas-help"
+          name="work_areas"
+          defaultValue={profile.work_areas.join(", ")}
+          placeholder={t.comma}
+        />
+        <small id="areas-help">{t.preferred}</small>
+      </label>
+      <label className="check-label">
+        <input
+          type="checkbox"
+          name="on_duty"
+          defaultChecked={profile.on_duty}
+        />
+        {t.duty}
+      </label>
+      <div className="notice">{t.noAlerts}</div>
+      {error && <ErrorNotice message={error} />}
+      <div className="profile-actions">
+        <Button busy={busy}>
+          {t.save}
+          <Check size={15} />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() =>
+            void api
+              ?.signOut()
+              .then(() => notify(t.signout))
+              .catch((e) => notify(errorMessage(e)))
+          }
+        >
+          <LogOut size={15} />
+          {t.signout}
+        </Button>
+      </div>
+    </form>
+  );
 }
-function ReportForm({meal,onClose}:{meal:Meal;onClose:()=>void}){const{api,t,notify}=useHunger();const[busy,setBusy]=useState(false),[error,setError]=useState('');return <Modal title={t.report} onClose={onClose}><h2>{t.report}</h2><p className="muted">{meal.venue_name}</p><form onSubmit={async e=>{e.preventDefault();setBusy(true);const d=new FormData(e.currentTarget);try{await api!.report(meal.id,String(d.get('reason')));notify(t.reported);onClose();}catch(e){setError(errorMessage(e));}finally{setBusy(false);}}}><label>{t.reportPrompt}<textarea name="reason" minLength={8} maxLength={1000} required/></label>{error&&<ErrorNotice message={error}/>}<Button className="full" busy={busy}>{t.send}</Button></form></Modal>;}
-function FeedbackForm({reservation,onClose}:{reservation:Reservation;onClose:()=>void}){const{api,t,notify}=useHunger();const[busy,setBusy]=useState(false),[error,setError]=useState('');return <Modal title={t.feedback} onClose={onClose}><h2>{t.feedback}</h2><form onSubmit={async e=>{e.preventDefault();setBusy(true);const d=new FormData(e.currentTarget);try{await api!.leaveFeedback({reservation_id:reservation.id,rating:Number(d.get('rating')),comment:String(d.get('comment'))});notify(t.feedbackThanks);onClose();}catch(e){setError(errorMessage(e));}finally{setBusy(false);}}}><label>{t.rating}<select name="rating" defaultValue="5">{[5,4,3,2,1].map(n=><option key={n} value={n}>{n} / 5</option>)}</select></label><label>{t.comment}<textarea name="comment" maxLength={600}/></label>{error&&<ErrorNotice message={error}/>}<Button className="full" busy={busy}>{t.send}</Button></form></Modal>;}
+function ReportForm({ meal, onClose }: { meal: Meal; onClose: () => void }) {
+  const { api, t, notify } = useHunger();
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  return (
+    <Modal title={t.report} onClose={onClose}>
+      <h2>{t.report}</h2>
+      <p className="muted">{meal.venue_name}</p>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          const d = new FormData(e.currentTarget);
+          try {
+            await api!.report(meal.id, String(d.get("reason")));
+            notify(t.reported);
+            onClose();
+          } catch (e) {
+            setError(errorMessage(e));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label>
+          {t.reportPrompt}
+          <textarea name="reason" minLength={8} maxLength={1000} required />
+        </label>
+        {error && <ErrorNotice message={error} />}
+        <Button className="full" busy={busy}>
+          {t.send}
+        </Button>
+      </form>
+    </Modal>
+  );
+}
+function FeedbackForm({
+  reservation,
+  onClose,
+}: {
+  reservation: Reservation;
+  onClose: () => void;
+}) {
+  const { api, t, notify } = useHunger();
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  return (
+    <Modal title={t.feedback} onClose={onClose}>
+      <h2>{t.feedback}</h2>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          const d = new FormData(e.currentTarget);
+          try {
+            await api!.leaveFeedback({
+              reservation_id: reservation.id,
+              rating: Number(d.get("rating")),
+              comment: String(d.get("comment")),
+            });
+            notify(t.feedbackThanks);
+            onClose();
+          } catch (e) {
+            setError(errorMessage(e));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label>
+          {t.rating}
+          <select name="rating" defaultValue="5">
+            {[5, 4, 3, 2, 1].map((n) => (
+              <option key={n} value={n}>
+                {n} / 5
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {t.comment}
+          <textarea name="comment" maxLength={600} />
+        </label>
+        {error && <ErrorNotice message={error} />}
+        <Button className="full" busy={busy}>
+          {t.send}
+        </Button>
+      </form>
+    </Modal>
+  );
+}
