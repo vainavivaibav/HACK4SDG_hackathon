@@ -93,3 +93,10 @@ vite.config.ts.timestamp-*
 
 # Archives created by npm pack
 *.tgz
+
+.expo/
+.next-e2e/
+test-results/
+playwright-report/
+team-deliverables/
+backend/supabase/.temp/
