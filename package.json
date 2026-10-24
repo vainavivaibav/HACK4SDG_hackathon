@@ -1,27 +1,35 @@
 {
-  "name": "hack4sdg-pes",
+  "name": "hunger-hackathon",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "dev": "npm run dev -w @hunger/web",
+    "dev:console": "npm run dev -w @hunger/console",
+    "dev:mobile": "npm run start -w @hunger/mobile",
+    "build": "npm run build -w @hunger/web && npm run build -w @hunger/console",
+    "typecheck": "tsc -p packages/core --noEmit && tsc -p packages/ui --noEmit && tsc -p apps/web --noEmit && tsc -p apps/console --noEmit && tsc -p apps/mobile --noEmit",
+    "test": "node scripts/prepare-tests.mjs && node --test backend/tests/*.test.mjs && node --import tsx --test packages/core/tests/*.test.ts",
+    "test:e2e": "node scripts/prepare-tests.mjs && playwright test",
+    "package:team": "npm run check:integration && node scripts/package-team.mjs",
+    "test:local-stack": "node scripts/prepare-tests.mjs && node backend/tests/local-stack.mjs",
+    "review:schema": "node scripts/prepare-tests.mjs && node backend/tests/review-schema.mjs",
+    "check:integration": "node --import tsx scripts/check-integration.ts",
+    "lint:mobile": "npm run lint -w @hunger/mobile"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
-    "eslint": "^10.13.0",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.7",
-    "globals": "^17.13.0",
-    "vite": "^8.3.4"
+    "typescript": "6.0.3",
+    "@types/node": "24.10.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tsx": "4.23.15",
+    "embedded-postgres": "17.10.0-beta.17",
+    "pg": "8.23.1",
+    "@playwright/test": "1.64.1",
+    "supabase": "2.122.0"
   }
 }

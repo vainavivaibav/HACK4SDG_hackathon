@@ -1,0 +1,12 @@
+{
+  "id": "hunger-2026-10-24-v4",
+  "description": "Synchronized Stitch-inspired discovery, full meal and reservation routes, Expo UI, backend contract and host/admin source release",
+  "archives": [
+    "01-website.zip",
+    "02-mobile-app.zip",
+    "03-backend.zip",
+    "04-host-admin-integration.zip"
+  ],
+  "extraction": "Extract all four into the same repository root; do not keep ZIP-name wrapper folders.",
+  "githubActions": "User-authorized synchronization to module branches and integration/test-all-projects; main intentionally unchanged."
+}
