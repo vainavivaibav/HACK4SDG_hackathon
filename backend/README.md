@@ -48,3 +48,7 @@ From the root: `npm test` and `npm run review:schema`. They run real temporary P
 For a full local Supabase installation with real Auth/Storage/Realtime, install Docker and use the initialized config in this directory with the Supabase CLI. Check CLI help before running `start`/`db reset`; resets destroy local data. The cloud project and native services still need verification after configuration.
 
 Keep `schema.sql` and the initial migration aligned while it remains undeployed. Once deployed, create a new migration for future schema changes instead of rewriting history.
+
+## Synchronized source release
+
+Release `hunger-2026-10-24-v4` is matched to the redesigned clients. See `CLIENT-CONTRACT.md`. No new database migration is required for this UI release.
