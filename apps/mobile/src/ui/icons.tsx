@@ -13,8 +13,10 @@ export type IconName =
   | "shield"
   | "close"
   | "leaf"
-  | "locate";
+  | "locate"
+  | "filter";
 const paths: Record<IconName, string> = {
+  filter: "M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6",
   home: "m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z",
   search: "m21 21-4.4-4.4",
   pin: "M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z",

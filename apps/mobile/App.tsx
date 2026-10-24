@@ -88,7 +88,9 @@ function MobileApp() {
     [diet, setDiet] = useState("all"),
     [coords, setCoords] = useState<Coords | null>(null),
     [radius, setRadius] = useState(0),
-    [servingNow, setServingNow] = useState(false);
+    [servingNow, setServingNow] = useState(false),
+    [sort, setSort] = useState("window"),
+    [filtersOpen,setFiltersOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false),
     [signup, setSignup] = useState(false),
     [email, setEmail] = useState(""),
@@ -319,14 +321,15 @@ function MobileApp() {
         (!coords || !radius || distanceKm(coords, m) <= radius),
     )
     .sort((a, b) =>
-      coords ? distanceKm(coords, a) - distanceKm(coords, b) : 0,
+      sort === "portions" ? b.available_portions-a.available_portions : sort === "distance" && coords ? distanceKm(coords,a)-distanceKm(coords,b) : Date.parse(a.starts_at)-Date.parse(b.starts_at),
     );
   const activeReservation = reservations.find(
-    (r) => effectiveStatus(r, clock) === "active",
+    (r) => r.worker_id===user?.id && effectiveStatus(r, clock) === "active",
   );
-  const activeToken = token
+  const activeToken = token && token.worker_id===user?.id
     ? reservations.find((r) => r.id === token.id) || token
     : null;
+  const tokenMeal=meals.find(m=>m.id===activeToken?.listing_id);
   const showSignIn = (
     <View style={s.empty}>
       <View style={s.emptyIcon}>
@@ -350,7 +353,7 @@ function MobileApp() {
             <Icon name="utensils" size={19} color="white" />
           </View>
           <Text style={s.brand}>
-            hunger<Text style={s.red}>.</Text>
+            HUNGER
           </Text>
         </Pressable>
         <View style={s.row}>
@@ -432,23 +435,14 @@ function MobileApp() {
                 </Text>
                 <Text style={s.neighbourhoodFree}>{t.free}</Text>
               </View>
-              <View style={s.hero}>
-                <View style={s.heroCopy}>
-                  <Text style={s.eyebrow}>{c.tag}</Text>
-                  <Text style={s.heroTitle}>
-                    {c.title}
-                    {"\n"}
-                    <Text style={s.heroAccent}>{c.accent}</Text>
-                  </Text>
-                  <Text style={s.heroBody}>{c.zero}</Text>
+              <View style={s.inventory}>
+                <Text style={s.eyebrow}>{api ? t.live : c.preview}</Text>
+                <Text style={s.inventoryTitle}>{c.inventory}</Text>
+                <View style={s.inventoryCount}>
+                  <Icon name="utensils" size={19} color={palette.green}/>
+                  <View style={{flex:1}}><Text style={s.inventoryNumber}>{filtered.reduce((n,m)=>n+m.available_portions,0)} {c.portionsReady}</Text><Text style={s.tiny}>{new Set(filtered.map(m=>m.venue_id)).size} {c.kitchens} · {t.free}</Text></View>
                 </View>
-                <Image
-                  source={require("./assets/thali-v2.jpg")}
-                  style={s.heroImage}
-                  resizeMode="cover"
-                  accessible
-                  accessibilityLabel={c.photo}
-                />
+                <Text style={s.inventoryRule}>{c.oneActive}</Text>
               </View>
               {activeReservation && (
                 <Pressable
@@ -475,6 +469,7 @@ function MobileApp() {
                   onChangeText={setQuery}
                   returnKeyType="search"
                 />
+                <Pressable accessibilityRole="button" accessibilityLabel={c.refine} accessibilityState={{expanded:filtersOpen}} onPress={()=>setFiltersOpen(!filtersOpen)} style={[s.filterToggle,filtersOpen&&s.chipActive]}><Icon name="filter" size={18} color={filtersOpen?"white":palette.ink}/></Pressable>
                 {!!query && (
                   <Pressable
                     accessibilityRole="button"
@@ -505,6 +500,7 @@ function MobileApp() {
                   />
                 ))}
               </ScrollView>
+              {filtersOpen&&<View style={s.filterPanel}>
               <View style={s.dietRow}>
                 {[
                   ["all", t.all],
@@ -535,6 +531,12 @@ function MobileApp() {
                   }
                 />
               </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
+                <Chip active={sort==="window"} label={c.earliest} onPress={()=>setSort("window")}/>
+                <Chip active={sort==="portions"} label={c.mostPortions} onPress={()=>setSort("portions")}/>
+                {coords&&<Chip active={sort==="distance"} label={c.closest} onPress={()=>setSort("distance")}/>}
+              </ScrollView>
+              </View>}
               <View style={s.sectionHeader}>
                 <Text style={s.sectionTitle}>{c.nearYou}</Text>
                 <Text style={s.resultCount}>
@@ -591,7 +593,7 @@ function MobileApp() {
                     <View style={s.cardBody}>
                       <View style={s.cardRow}>
                         <Text style={s.availability}>
-                          {isServing(m) ? "● " + c.ready : c.later}
+                          {m.available_portions===0 ? t.soldOut : isServing(m,clock) ? "● " + c.ready : c.later}
                         </Text>
                         <Text style={s.portions}>
                           {m.available_portions} {t.portions}
@@ -623,11 +625,9 @@ function MobileApp() {
                           <Text style={s.price}>₹0</Text>
                           <Text style={s.priceNote}>{t.free}</Text>
                         </View>
-                        <View style={s.detailButton}>
-                          <Text style={s.detailLink}>{t.details}</Text>
-                          <Icon name="arrow" size={16} color={palette.red} />
-                        </View>
+                        <Text style={s.freeBadge}>{t.free}</Text>
                       </View>
+                      <View style={s.detailButton}><Text style={s.detailLink}>{c.viewDetails}</Text><Icon name="arrow" size={17} color="white"/></View>
                     </View>
                   </Pressable>
                 ))
@@ -969,18 +969,12 @@ function MobileApp() {
       >
         {detail && (
           <>
-            <Image
-              source={mealImage(detail)}
-              style={s.detailPhoto}
-              accessibilityLabel={c.photo}
-            />
+            <View><Image source={mealImage(detail)} style={s.detailPhoto} resizeMode="cover" accessibilityLabel={c.photo}/><Text style={s.photoLabel}>{c.photo}</Text></View>
             <Text style={s.diet}>
               {detail.diet === "veg" ? t.veg : t.nonveg}
             </Text>
             <Text style={s.sheetTitle}>{detail.title}</Text>
             <Text style={s.body}>{detail.description}</Text>
-            <Text style={s.cardTitle}>{detail.venue_name}</Text>
-            <Text style={s.body}>{detail.address}</Text>
             <View style={s.detailGrid}>
               <View>
                 <Text style={s.tiny}>{t.serving}</Text>
@@ -996,18 +990,13 @@ function MobileApp() {
                 </Text>
               </View>
             </View>
-            <Text style={s.instructions}>{detail.instructions}</Text>
+            <View style={s.pickupPanel}><Text style={s.eyebrow}>{c.pickupPoint}</Text><Text style={s.cardTitle}>{detail.venue_name}</Text><Text style={s.body}>{detail.address}</Text><Text style={s.instructions}>{detail.instructions}</Text></View>
             <Text style={s.portions}>
               {detail.available_portions} {t.portions} · ₹0
             </Text>
             {error && <Text style={s.errorText}>{error}</Text>}
-            <Action
-              busy={busy}
-              disabled={!isServing(detail)}
-              onPress={() => void reserve(detail)}
-            >
-              {t.reserve}
-            </Action>
+            {activeReservation ? <Action onPress={()=>{setDetail(null);setToken(activeReservation);}}>{t.viewToken}</Action> : <Action busy={busy} disabled={!isServing(detail,clock)} onPress={()=>void reserve(detail)}>{t.reserve}</Action>}
+            <Text style={s.policy}>{c.policy}</Text>
             <Action
               secondary
               onPress={() =>
@@ -1043,24 +1032,17 @@ function MobileApp() {
         {activeToken && (
           <>
             <Text style={s.sheetTitle}>{t.token}</Text>
-            <View style={s.qr}>
-              <QRCode
-                value={qrPayload(activeToken)}
-                size={190}
-                backgroundColor="white"
-              />
-            </View>
-            <Text style={s.backupLabel}>{c.backup}</Text>
-            <Text style={s.backupCode}>{activeToken.code}</Text>
             <Text style={s.countdown}>
               {effectiveStatus(activeToken, clock) === "active"
                 ? `${t.expiresIn} ${Math.floor(tokenSeconds(activeToken, clock) / 60)}:${String(tokenSeconds(activeToken, clock) % 60).padStart(2, "0")}`
                 : t[effectiveStatus(activeToken, clock)]}
             </Text>
-            <Text style={s.tokenVenue}>
-              {meals.find((m) => m.id === activeToken.listing_id)?.venue_name}
-            </Text>
-            <Text style={s.body}>{t.tokenNote}</Text>
+            {effectiveStatus(activeToken,clock)==="active" ? <>
+              <View style={s.qr}><QRCode value={qrPayload(activeToken)} size={190} backgroundColor="white"/></View>
+              <Text style={s.backupLabel}>{c.tokenHelp}</Text>
+              <View style={s.fallbackPanel}><Text style={s.backupLabel}>{c.backup}</Text><Text style={s.backupCode}>{activeToken.code}</Text><Text style={s.policy}>{t.tokenNote}</Text></View>
+            </> : <View style={s.empty}><Icon name="ticket" size={36}/><Text style={s.cardTitle}>{t[effectiveStatus(activeToken,clock)]}</Text></View>}
+            {tokenMeal&&<View style={s.pickupPanel}><Text style={s.eyebrow}>{c.pickupPoint}</Text><Text style={s.cardTitle}>{tokenMeal.venue_name}</Text><Text style={s.body}>{tokenMeal.address}</Text><View style={s.collectionTile}><Icon name="clock" color={palette.red} size={18}/><Text style={s.detailValue}>{mealTime(tokenMeal.starts_at,lang)} – {mealTime(tokenMeal.ends_at,lang)}</Text></View><Text style={s.instructions}>{tokenMeal.instructions}</Text><Action secondary onPress={()=>void Linking.openURL(directions(tokenMeal)).catch(e=>setError(errorMessage(e)))}>{t.directions}</Action></View>}
             {error && <Text style={s.errorText}>{error}</Text>}
             {effectiveStatus(activeToken, clock) === "active" && (
               <Action
