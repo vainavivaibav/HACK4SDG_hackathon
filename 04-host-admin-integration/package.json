@@ -1,0 +1,33 @@
+{
+  "name": "hunger-hackathon",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @hunger/web",
+    "dev:console": "npm run dev -w @hunger/console",
+    "dev:mobile": "npm run start -w @hunger/mobile",
+    "build": "npm run build -w @hunger/web && npm run build -w @hunger/console",
+    "typecheck": "tsc -p packages/core --noEmit && tsc -p packages/ui --noEmit && tsc -p apps/web --noEmit && tsc -p apps/console --noEmit && tsc -p apps/mobile --noEmit",
+    "test": "node scripts/prepare-tests.mjs && node --test backend/tests/*.test.mjs && node --import tsx --test packages/core/tests/*.test.ts",
+    "test:e2e": "node scripts/prepare-tests.mjs && playwright test",
+    "package:team": "node scripts/package-team.mjs",
+    "test:local-stack": "node scripts/prepare-tests.mjs && node backend/tests/local-stack.mjs",
+    "review:schema": "node scripts/prepare-tests.mjs && node backend/tests/review-schema.mjs"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "@types/node": "24.10.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tsx": "4.23.15",
+    "embedded-postgres": "17.10.0-beta.17",
+    "pg": "8.23.1",
+    "@playwright/test": "1.64.1",
+    "supabase": "2.122.0"
+  }
+}
